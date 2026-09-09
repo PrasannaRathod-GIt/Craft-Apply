@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
-from app.routers import auth
+from app.routers import auth, resume
 
 app = FastAPI(title="Resume Builder API")
 
@@ -29,6 +29,7 @@ if settings.CLOUDINARY_CLOUD_NAME:
     )
 
 app.include_router(auth.router)
+app.include_router(resume.router)
 
 
 @app.get("/health")

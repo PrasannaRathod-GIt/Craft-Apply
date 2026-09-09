@@ -1,0 +1,17 @@
+{
+  "template6": {
+    "name": "ATS Friendly - Basic",
+    "sections_order": ["contact", "summary", "experiences", "education", "skills", "certificates"],
+    "ats_exportable": true
+  },
+  "template7": {
+    "name": "ATS Friendly - Professional",
+    "sections_order": ["contact", "summary", "experiences", "projects", "education", "achievements", "skills"],
+    "ats_exportable": true
+  },
+  "template8": {
+    "name": "ATS Friendly - Compact",
+    "sections_order": ["contact", "summary", "education", "experiences", "skills", "certificates", "languages"],
+    "ats_exportable": true
+  }
+}
