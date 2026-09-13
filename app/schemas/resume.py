@@ -9,16 +9,16 @@ from pydantic import BaseModel, Field
 
 
 class ExperienceEntry(BaseModel):
-    role: str = ""
-    company: str = ""
+    role: str = Field(default="", description="Job title held in this role, e.g. 'Backend Engineer'. A few words only.")
+    company: str = Field(default="", description="Employer/company name only.")
     location: str | None = None
-    start_date: str = ""
-    end_date: str = ""  # "" or "Present"
-    bullets: list[str] = Field(default_factory=list)
+    start_date: str = Field(default="", description="Start date, e.g. 'Jan 2022'.")
+    end_date: str = Field(default="", description="End date, or 'Present' if current.")
+    bullets: list[str] = Field(default_factory=list, description="Individual bullet points describing accomplishments in this role. Each list item is one bullet.")
 
 
 class EducationEntry(BaseModel):
-    degree: str = ""
+    degree: str = Field(default="", description="Degree name only, e.g. 'B.S. Computer Science'.")
     institution: str = ""
     year: str = ""
     details: str | None = None
@@ -53,9 +53,20 @@ class ContactInfo(BaseModel):
 class ResumeData(BaseModel):
     """The canonical shape. Gemini is prompted to return exactly this structure."""
 
-    name: str = ""
-    title: str = ""  # e.g. "Senior Backend Engineer"
-    summary: str = ""  # aka "about"
+    name: str = Field(default="", description="The person's full name only. Nothing else.")
+    title: str = Field(
+        default="",
+        description=(
+            "The person's professional/job title ONLY - a short phrase of 2-6 words, "
+            "e.g. 'Senior Backend Engineer' or 'Software Engineer'. "
+            "Never put a summary, explanation, list of skills, or any other information here. "
+            "Never describe what changed or why - only the literal job title string."
+        ),
+    )
+    summary: str = Field(
+        default="",
+        description="A short professional summary/about paragraph (2-4 sentences), aka 'about'.",
+    )
 
     contact: ContactInfo = Field(default_factory=ContactInfo)
 
@@ -65,7 +76,7 @@ class ResumeData(BaseModel):
     certificates: list[CertificateEntry] = Field(default_factory=list)
     achievements: list[AchievementEntry] = Field(default_factory=list)
 
-    skills: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list, description="Flat list of individual skill names, most relevant first.")
     languages: list[str] = Field(default_factory=list)
 
     profile_photo_url: str | None = None
