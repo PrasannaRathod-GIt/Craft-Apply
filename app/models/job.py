@@ -10,7 +10,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    slug: Mapped[str] = mapped_column(String, unique=True, index=True)
+    slug: Mapped[str | None] = mapped_column(String, unique=True, index=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     company: Mapped[str | None] = mapped_column(String)
     location: Mapped[str | None] = mapped_column(String)
@@ -23,12 +23,17 @@ class Job(Base):
     skills: Mapped[str | None] = mapped_column(Text)
     salary: Mapped[str | None] = mapped_column(String)
     last_date: Mapped[str | None] = mapped_column(String)
-    apply_url: Mapped[str | None] = mapped_column(String)
+    apply_url: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # image_url replaces image_filename — stores Cloudinary URL directly
     image_filename: Mapped[str | None] = mapped_column(String)
+    image_url: Mapped[str | None] = mapped_column(Text)
+
     posted_date: Mapped[date | None] = mapped_column(Date, server_default=func.current_date())
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
-    # Phase 2 additions vs your Flask schema:
-    source: Mapped[str | None] = mapped_column(String)  # 'internshala' | 'aggregator' | 'company_feed' | 'manual'
-    dedup_hash: Mapped[str | None] = mapped_column(String, unique=True, index=True)
+    # Phase 2: scraper source + dedup
+    source: Mapped[str] = mapped_column(String(50), default="manual", server_default="manual")
+    dedup_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -31,6 +31,16 @@ if settings.CLOUDINARY_CLOUD_NAME:
 app.include_router(auth.router)
 app.include_router(resume.router)
 
+from app.routers import internal
+app.include_router(internal.router)
+
+from app.routers import auth, resume, jobs, admin_jobs, internal
+
+app.include_router(auth.router)
+app.include_router(resume.router)
+app.include_router(jobs.router)
+app.include_router(admin_jobs.router)
+app.include_router(internal.router)
 
 @app.get("/health")
 async def health():

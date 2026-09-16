@@ -3,7 +3,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
+    GREENHOUSE_BOARDS: dict[str, str] = {}   # {"stripe": "Stripe", "figma": "Figma"} — start empty, add as you find companies you want to track
+    ADZUNA_APP_ID: str = ""
+    ADZUNA_APP_KEY: str = ""
+    ADZUNA_COUNTRY: str = "in"
+    ADZUNA_QUERY: str = ""                   # empty = broadest results
+    ADZUNA_PAGES: int = 1
+    ENABLE_INTERNSHALA_SCRAPE: bool = False  # leave off until you've verified ToS + eyeballed real output
+    INTERNSHALA_PAGES: int = 1
+    INTERNAL_SCRAPE_SECRET: str              # required, no default — generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"`
     # Database
     DATABASE_URL: str
 
@@ -30,6 +38,8 @@ class Settings(BaseSettings):
 
     # CORS - comma separated list
     ALLOWED_ORIGINS: str = "http://localhost:3000"
+
+
 
     # Gemini
     GEMINI_API_KEY: str | None = None
