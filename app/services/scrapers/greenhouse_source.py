@@ -45,7 +45,7 @@ async def fetch_greenhouse_jobs(board_tokens: Dict[str, str]) -> List[RawJobList
                 continue
 
             data = resp.json()
-            for job in data.get("jobs", [])[:10]:
+            for job in data.get("jobs", [])[:10]:  # cap per company to keep listings diverse across sources
                 location = (job.get("location") or {}).get("name")
                 content_html = job.get("content") or ""
                 description = _strip_html(content_html)
