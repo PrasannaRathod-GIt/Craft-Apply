@@ -1,0 +1,19 @@
+name: Daily Job Scrape
+
+on:
+  schedule:
+    # Runs at 3:00 AM UTC every day. Adjust as needed - cron syntax is
+    # minute hour day month weekday.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}  # lets you also trigger it manually from the GitHub Actions tab
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the internal scrape endpoint
+        run: |
+          curl -X POST "${{ secrets.RENDER_APP_URL }}/internal/scrape" \
+            -H "X-Internal-Secret: ${{ secrets.INTERNAL_SCRAPE_SECRET }}" \
+            --fail --show-error --silent \
+            -w "\nHTTP status: %{http_code}\n"
