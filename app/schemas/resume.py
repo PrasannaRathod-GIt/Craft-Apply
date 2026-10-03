@@ -101,7 +101,7 @@ class ResumeParseResponse(BaseModel):
 class ResumeTailorRequest(BaseModel):
     submission_id: int  # the existing resume to tailor
     job_description: str
-
+    model: str | None = None  # which Gemini model to use; None = backend default
 
 class ResumeTailorResponse(BaseModel):
     submission_id: int  # NEW submission id (never overwrites the original)

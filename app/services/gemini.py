@@ -4,13 +4,10 @@
 
 Uses the current Interactions API (`google-genai`, `client.aio.interactions.create`).
 
-Calls per full run (parse + tailor): normally 3. The free tier allows only 20 requests/day,
-so every call is spent deliberately:
-- parse: 1 call for identity+contact+languages, 1 call for experience/education/etc.
-  Skills come from a plain-text match on the 'Skills:' line; Gemini is asked for skills
-  only if that line is missing.
-- tailor: 1 call (the patch also carries the human-readable match notes).
-Flash-tier drops fields on big schemas, so each call keeps its schema small.
+Calls per full run (parse + tailor): normally 3. The free tier allows only 20 requests/day
+per model, so every call is spent deliberately. Flash-tier drops fields on big schemas,
+so each call keeps its schema small, and a caller may pass `model` to pick which Gemini
+model handles the request (frontend model selector).
 """
 import re
 from typing import Callable, TypeVar
@@ -29,7 +26,7 @@ from app.schemas.resume import (
     ResumeData,
 )
 
-MODEL = "gemini-3.5-flash-lite" # free tier gives ZERO quota for pro-tier models (429 "limit: 0")
+MODEL = "gemini-3.5-flash-lite"  # backend default; callers may override via `model` param
 
 _client: genai.Client | None = None
 
@@ -158,6 +155,7 @@ async def _generate(
     prompt: str,
     is_empty: Callable[[T], bool] | None = None,
     attempts: int = 2,
+    model: str = MODEL,
 ) -> T:
     """One schema-constrained Gemini call, retried only if the result looks empty."""
     client = _get_client()
@@ -165,7 +163,7 @@ async def _generate(
     for _ in range(attempts):
         try:
             interaction = await client.aio.interactions.create(
-                model=MODEL,
+                model=model,
                 input=prompt,
                 response_format={
                     "type": "text",
@@ -184,15 +182,7 @@ async def _generate(
             return result
     assert result is not None
     return result
-def _contact_from_text(raw_text: str) -> ContactInfo:
-    """Plain-text fallback: pull an email and phone number straight from the resume
-    if the identity call returned them empty."""
-    email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", raw_text)
-    phone_match = re.search(r"(?:\+?\d[\d\-\s]{7,}\d)", raw_text)
-    return ContactInfo(
-        email=email_match.group(0) if email_match else "",
-        phone=phone_match.group(0).strip() if phone_match else "",
-    )
+
 
 def _skills_from_text(raw_text: str) -> list[str]:
     """Plain-text extraction of a 'Skills: a, b, c' line straight from the resume."""
@@ -227,28 +217,44 @@ def _clean_title(title: str, raw_text: str, name: str) -> str:
     return ""
 
 
+def _contact_from_text(raw_text: str) -> ContactInfo:
+    """Plain-text fallback: pull an email and phone number straight from the resume
+    if the identity call returned them empty."""
+    email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", raw_text)
+    phone_match = re.search(r"(?:\+?\d[\d\-\s]{7,}\d)", raw_text)
+    return ContactInfo(
+        email=email_match.group(0) if email_match else "",
+        phone=phone_match.group(0).strip() if phone_match else "",
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Parse
 # --------------------------------------------------------------------------- #
-async def parse_resume_text(raw_text: str) -> ResumeData:
+async def parse_resume_text(raw_text: str, model: str | None = None) -> ResumeData:
+    selected_model = model or MODEL
+
     identity = await _generate(
         _ParsedIdentity,
         _IDENTITY_PROMPT + raw_text,
         is_empty=lambda r: not r.name or not (r.contact.email or r.contact.phone),
+        model=selected_model,
     )
     contact = identity.contact
     if not contact.email and not contact.phone:
         contact = _contact_from_text(raw_text)
+
     sections = await _generate(
         _ParsedSections,
         _SECTIONS_PROMPT + raw_text,
         is_empty=lambda r: not r.experiences and not r.education,
+        model=selected_model,
     )
 
     # An explicit "Skills:" line wins and costs zero API calls.
     skill_list = _dedupe(_skills_from_text(raw_text))
     if not skill_list:
-        skills = await _generate(_ParsedSkills, _SKILLS_PROMPT + raw_text, attempts=1)
+        skills = await _generate(_ParsedSkills, _SKILLS_PROMPT + raw_text, attempts=1, model=selected_model)
         skill_list = _dedupe(skills.skills)
 
     return ResumeData(
@@ -269,7 +275,11 @@ async def parse_resume_text(raw_text: str) -> ResumeData:
 # --------------------------------------------------------------------------- #
 # Tailor
 # --------------------------------------------------------------------------- #
-async def tailor_resume(existing: ResumeData, job_description: str) -> tuple[ResumeData, str]:
+async def tailor_resume(
+    existing: ResumeData, job_description: str, model: str | None = None
+) -> tuple[ResumeData, str]:
+    selected_model = model or MODEL
+
     experiences_text = "\n".join(
         f"[{i}] {exp.role} at {exp.company}:\n" + "\n".join(f"  - {b}" for b in exp.bullets)
         for i, exp in enumerate(existing.experiences)
@@ -281,7 +291,7 @@ async def tailor_resume(existing: ResumeData, job_description: str) -> tuple[Res
         experiences_text=experiences_text,
         job_description=job_description,
     )
-    patch = await _generate(_TailorPatch, prompt, attempts=1)
+    patch = await _generate(_TailorPatch, prompt, attempts=1, model=selected_model)
 
     # Merge the patch into a COPY of the original - fields the model never sees
     # (name, title, contact, education, projects, ...) are guaranteed unchanged.

@@ -16,7 +16,11 @@ from app.schemas.resume import (
 )
 from app.services.gemini import parse_resume_text, tailor_resume
 from app.services.text_extraction import extract_text_from_upload
+import io
 
+from fastapi.responses import StreamingResponse
+
+from app.services.export import generate_ats_docx, generate_ats_pdf
 router = APIRouter(prefix="/resume", tags=["resume"])
 
 
@@ -24,6 +28,7 @@ router = APIRouter(prefix="/resume", tags=["resume"])
 async def parse_resume(
     text: str | None = Form(default=None),
     file: Any = File(default=None),
+    model: str | None = Form(default=None),
     db: AsyncSession = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ):
@@ -44,7 +49,7 @@ async def parse_resume(
 
     raw_text = text if text else await extract_text_from_upload(file)
 
-    resume_data = await parse_resume_text(raw_text)
+    resume_data = await parse_resume_text(raw_text, model=model)
 
     submission = Submission(
         user_id=user.id if user else None,
@@ -72,7 +77,7 @@ async def tailor(
         raise HTTPException(404, "Original submission not found")
 
     existing_data = ResumeData.model_validate(original.data)
-    tailored_data, match_notes = await tailor_resume(existing_data, payload.job_description)
+    tailored_data, match_notes = await tailor_resume(existing_data, payload.job_description, model=payload.model)
 
     new_submission = Submission(
         user_id=user.id if user else original.user_id,
@@ -100,3 +105,31 @@ async def get_resume(submission_id: int, db: AsyncSession = Depends(get_db)):
     if not submission:
         raise HTTPException(404, "Submission not found")
     return ResumeData.model_validate(submission.data)
+
+@router.get("/{submission_id}/export/{fmt}")
+async def export_resume(submission_id: int, fmt: str, db: AsyncSession = Depends(get_db)):
+    if fmt not in ("docx", "pdf"):
+        raise HTTPException(400, "fmt must be 'docx' or 'pdf'")
+
+    result = await db.execute(select(Submission).where(Submission.id == submission_id))
+    submission = result.scalar_one_or_none()
+    if not submission:
+        raise HTTPException(404, "Submission not found")
+
+    data = ResumeData.model_validate(submission.data)
+    safe_name = (data.name or "resume").strip().replace(" ", "_") or "resume"
+
+    if fmt == "docx":
+        content = generate_ats_docx(data)
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        filename = f"{safe_name}.docx"
+    else:
+        content = generate_ats_pdf(data)
+        media_type = "application/pdf"
+        filename = f"{safe_name}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

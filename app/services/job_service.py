@@ -64,17 +64,39 @@ async def create_job(
 
 
 async def list_active_jobs(
-    db: AsyncSession, page: int = 1, per_page: int = 8
+    db: AsyncSession,
+    page: int = 1,
+    per_page: int = 8,
+    q: Optional[str] = None,
+    job_type: Optional[str] = None,
+    location: Optional[str] = None,
 ) -> Tuple[Sequence[Job], int, int]:
     offset = (page - 1) * per_page
 
+    conditions = [Job.is_active.is_(True)]
+
+    if q:
+        pattern = f"%{q.strip()}%"
+        conditions.append(
+            (Job.title.ilike(pattern))
+            | (Job.company.ilike(pattern))
+            | (Job.short_desc.ilike(pattern))
+            | (Job.description.ilike(pattern))
+        )
+
+    if job_type and job_type.lower() != "any":
+        conditions.append(Job.job_type.ilike(f"%{job_type.strip()}%"))
+
+    if location and location.lower() != "anywhere":
+        conditions.append(Job.location.ilike(f"%{location.strip()}%"))
+
     total = (
-        await db.execute(select(func.count()).select_from(Job).where(Job.is_active.is_(True)))
+        await db.execute(select(func.count()).select_from(Job).where(*conditions))
     ).scalar_one()
 
     result = await db.execute(
         select(Job)
-        .where(Job.is_active.is_(True))
+        .where(*conditions)
         .order_by(Job.posted_date.desc(), Job.id.desc())
         .offset(offset)
         .limit(per_page)
@@ -82,7 +104,6 @@ async def list_active_jobs(
     jobs = result.scalars().all()
     total_pages = max(1, (total + per_page - 1) // per_page)
     return jobs, total, total_pages
-
 
 async def get_job_by_slug(db: AsyncSession, slug: str) -> Optional[Job]:
     result = await db.execute(select(Job).where(Job.slug == slug, Job.is_active.is_(True)))
